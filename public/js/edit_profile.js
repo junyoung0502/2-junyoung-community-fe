@@ -131,8 +131,6 @@ const withdrawModal = document.getElementById('withdrawModal');
 const modalCancelBtn = document.getElementById('modalCancelBtn');
 const modalConfirmBtn = document.getElementById('modalConfirmBtn');
 
-// ... 중간 코드 생략 ...
-
 // 8. 회원탈퇴 버튼 클릭 (수정됨)
 withdrawBtn.addEventListener('click', function(e) {
     e.preventDefault(); 
@@ -168,22 +166,3 @@ withdrawModal.addEventListener('click', function(e) {
 
 // 초기화 실행
 init();
-
-// ============================================================
-// ★ 추가: 드롭다운 메뉴 기능 (Board 페이지와 동일)
-// ============================================================
-const profileIcon = document.getElementById('profileIcon');
-const userDropdown = document.getElementById('userDropdown');
-
-// 프로필 아이콘 클릭 시 메뉴 토글
-profileIcon.addEventListener('click', function(event) {
-    event.stopPropagation(); 
-    userDropdown.classList.toggle('show');
-});
-
-// 화면의 다른 곳을 클릭하면 메뉴 닫기
-document.addEventListener('click', function(event) {
-    if (!profileIcon.contains(event.target)) {
-        userDropdown.classList.remove('show');
-    }
-});

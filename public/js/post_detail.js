@@ -259,19 +259,3 @@ backBtn.addEventListener('click', () => location.href = 'board.html');
 
 // 공통 헤더 로직 실행
 initPost();
-
-// (헤더 프로필 로직 - 기존과 동일하게 유지)
-const profileIcon = document.getElementById('profileIcon');
-const userDropdown = document.getElementById('userDropdown');
-const storedUser = localStorage.getItem('user');
-if (storedUser) {
-    const currentUser = JSON.parse(storedUser);
-    const headerProfileIcon = document.querySelector('.user-avatar');
-    if (headerProfileIcon && currentUser.profileImage) {
-        headerProfileIcon.style.backgroundImage = `url('${currentUser.profileImage}')`;
-        headerProfileIcon.style.backgroundSize = 'cover';
-        headerProfileIcon.style.backgroundPosition = 'center';
-    }
-}
-profileIcon.addEventListener('click', (e) => { e.stopPropagation(); userDropdown.classList.toggle('show'); });
-document.addEventListener('click', (e) => { if (!profileIcon.contains(e.target)) userDropdown.classList.remove('show'); });

@@ -92,39 +92,3 @@ function renderPosts() {
 
 // 5. 실행
 renderPosts();
-
-// 6. 드롭다운 메뉴 기능
-const profileIcon = document.getElementById('profileIcon');
-const userDropdown = document.getElementById('userDropdown');
-
-// 프로필 아이콘 클릭 시 메뉴 토글
-profileIcon.addEventListener('click', function(event) {
-    // 이벤트 버블링 방지 (부모에게 클릭 전달 안 함)
-    event.stopPropagation(); 
-    userDropdown.classList.toggle('show');
-});
-
-// 화면의 다른 곳을 클릭하면 메뉴 닫기
-document.addEventListener('click', function(event) {
-    // 클릭한 곳이 프로필 아이콘 내부가 아니라면 닫기
-    if (!profileIcon.contains(event.target)) {
-        userDropdown.classList.remove('show');
-    }
-});
-
-// 1. 저장된 정보 가져오기
-const storedUser = localStorage.getItem('user');
-
-if (storedUser) {
-    const currentUser = JSON.parse(storedUser);
-    
-    // 2. 헤더의 동그라미 아이콘 찾기
-    const headerProfileIcon = document.querySelector('.user-avatar');
-    
-    // 3. 이미지가 있고, 요소가 찾았으면 배경으로 설정
-    if (headerProfileIcon && currentUser.profileImage) {
-        headerProfileIcon.style.backgroundImage = `url('${currentUser.profileImage}')`;
-        headerProfileIcon.style.backgroundSize = 'cover';      // 꽉 차게
-        headerProfileIcon.style.backgroundPosition = 'center'; // 중앙 정렬
-    }
-}

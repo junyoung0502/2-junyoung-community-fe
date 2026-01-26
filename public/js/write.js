@@ -61,24 +61,3 @@ backBtn.addEventListener('click', () => {
     // history.back();
     location.href = "board.html";
 });
-
-
-// ============================================================
-// 헤더 프로필 & 드롭다운 (공통)
-// ============================================================
-const profileIcon = document.getElementById('profileIcon');
-const userDropdown = document.getElementById('userDropdown');
-
-const storedUser = localStorage.getItem('user');
-if (storedUser) {
-    const currentUser = JSON.parse(storedUser);
-    const headerProfileIcon = document.querySelector('.user-avatar');
-    if (headerProfileIcon && currentUser.profileImage) {
-        headerProfileIcon.style.backgroundImage = `url('${currentUser.profileImage}')`;
-        headerProfileIcon.style.backgroundSize = 'cover';
-        headerProfileIcon.style.backgroundPosition = 'center';
-    }
-}
-
-profileIcon.addEventListener('click', (e) => { e.stopPropagation(); userDropdown.classList.toggle('show'); });
-document.addEventListener('click', (e) => { if (!profileIcon.contains(e.target)) userDropdown.classList.remove('show'); });
