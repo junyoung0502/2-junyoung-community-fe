@@ -1,94 +1,91 @@
-// 1. 더미 데이터 (서버에서 받아왔다고 가정)
-const mockPosts = [
-    {
-        id: 1,
-        title: "제목 1",
-        likes: 0,
-        comments: 0,
-        views: 0,
-        date: "2021-01-01 00:00:00",
-        author: "더미 작성자 1",
-        authorImg: "" // 이미지가 없으면 회색 원
-    },
-    {
-        id: 2,
-        title: "제목 2 - 내용이 아주 긴 게시물의 경우 제목이 잘리는지 테스트",
-        likes: 10,
-        comments: 5,
-        views: 120,
-        date: "2024-01-22 16:30:00",
-        author: "익명",
-        authorImg: ""
-    },
-    {
-        id: 3,
-        title: "안녕하세요, 가입 인사 드립니다.",
-        likes: 2,
-        comments: 1,
-        views: 45,
-        date: "2024-01-22 15:00:00",
-        author: "홍길동",
-        authorImg: ""
-    },
-    {
-        id: 4,
-        title: "제목 4",
-        likes: 0,
-        comments: 0,
-        views: 0,
-        date: "2021-01-01 00:00:00",
-        author: "더미 작성자 1",
-        authorImg: ""
-    }
-];
+// public/js/board.js
 
-// 2. HTML 요소 가져오기
+// 1. 요소 가져오기
 const postList = document.getElementById('postList');
 
-// 3. 게시글 카드를 만드는 함수
-function createPostElement(post) {
-    const card = document.createElement('div');
-    card.className = 'post-card';
-    
-    // 클릭하면 상세 페이지로 이동 (나중에 구현)
-    card.onclick = () => {
-        location.href = "post_detail.html";
-    };
-
-    let displayTitle = post.title;
-    if (displayTitle.length > 26) {
-        displayTitle = displayTitle.substring(0, 26);
-    }
-
-    card.innerHTML = `
-        <h3 class="card-title">${displayTitle}</h3>
-        <div class="card-info">
-            <div class="stats">
-                <span>좋아요 ${post.likes}</span>
-                <span>댓글 ${post.comments}</span>
-                <span>조회수 ${post.views}</span>
-            </div>
-            <div class="date">${post.date}</div>
-        </div>
-        <div class="card-author">
-            <div class="author-img"></div> <span class="author-name">${post.author}</span>
-        </div>
-    `;
-
-    return card;
+function formatNumber(num) {
+    if (num >= 1000) return Math.floor(num / 1000) + 'k';
+    return num;
 }
 
-// 4. 화면에 그리기
-function renderPosts() {
-    // 기존 내용 비우기
-    postList.innerHTML = "";
+// 2. 서버에서 게시글 데이터를 가져오고 화면에 그리는 통합 함수
+async function loadAndRenderPosts() {
+    try {
+        // 백엔드 API 주소에 맞춰 경로 수정 (예: /api/v1/posts)
+        const response = await fetch('http://127.0.0.1:8000/api/v1/posts', {
+            method: 'GET',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            // 세션 기반 로그인이므로 쿠키를 포함하여 요청
+            credentials: 'include' 
+        });
 
-    // 데이터 반복해서 추가
-    mockPosts.forEach(post => {
+        const result = await response.json();
+
+        if (response.ok) {
+            // 서버 응답 구조가 { "message": "...", "data": [...] }인 경우 result.data 사용
+            const posts = result.data || result; 
+            renderPostList(posts);
+        } else {
+            console.error("데이터 로드 실패:", result.message);
+            alert("게시글을 불러올 수 없습니다.");
+        }
+    } catch (error) {
+        console.error("서버 통신 오류:", error);
+        alert("게시글을 불러오는 데 실패했습니다.");
+    }
+}
+
+// 3. 게시물 리스트를 순회하며 화면에 추가하는 함수
+function renderPostList(posts) {
+    postList.innerHTML = ""; // 기존 목록 비우기
+
+    if (!posts || posts.length === 0) {
+        postList.innerHTML = "<p style='text-align:center; padding:20px;'>게시글이 없습니다.</p>";
+        return;
+    }
+
+    posts.forEach(post => {
         const postEl = createPostElement(post);
         postList.appendChild(postEl);
     });
 }
 
-// 5. 실행
-renderPosts();
+// 4. 개별 게시물 카드를 만드는 함수
+function createPostElement(post) {
+    const card = document.createElement('div');
+    card.className = 'post-card';
+    
+    // 클릭 시 상세 페이지 이동 (글 ID를 쿼리 스트링으로 전달)
+    card.onclick = () => {
+        location.href = `post_detail.html?id=${post.postId}`;
+    };
+
+    // 제목 길이에 따른 말줄임 처리 (JS 혹은 CSS로 처리 가능)
+    let displayTitle = post.title;
+    if (displayTitle.length > 26) {
+        displayTitle = displayTitle.substring(0, 26) + "...";
+    }
+
+    // 서버 데이터 키값(likes, comments, views 등)이 백엔드 모델과 일치하는지 확인 필수
+    card.innerHTML = `
+        <h3 class="card-title">${displayTitle}</h3>
+        <div class="card-info">
+            <div class="stats">
+                <span>좋아요 ${post.likeCount || 0}</span>
+                <span>댓글 ${post.commentCount || 0}</span>
+                <span>조회수 ${post.viewCount || 0}</span>
+            </div>
+            <div class="date">${post.createdAt}</div>
+        </div>
+        <div class="card-author">
+            <div class="author-img"></div> 
+            <span class="author-name">${post.author}</span>
+        </div>
+    `;
+    return card;
+}
+
+// 5. 페이지 로드 시 실행
+loadAndRenderPosts();

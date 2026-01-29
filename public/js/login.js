@@ -71,27 +71,67 @@ function checkInput() {
 }
 
 // 4. 로그인 시도 (버튼 클릭 시)
-function attemptLogin() {
+// function attemptLogin() {
+//     const idValue = idInput.value;
+//     const pwValue = pwInput.value;
+
+//     if (idValue === "jylee0005@gmail.com" && pwValue === "dlwnsdud") {
+//         alert(idValue + "님 환영합니다!");
+
+//         // ★ [핵심] 로그인 성공 시 사용자 정보를 브라우저(localStorage)에 저장
+//         const userInfo = {
+//             email: idValue,
+//             nickname: "관리자",   // 초기 닉네임 설정
+//             profileImage: "https://cdn.pixabay.com/photo/2015/10/05/22/37/blank-profile-picture-973460_1280.png"      // 초기엔 이미지 없음
+//         };
+//         localStorage.setItem('user', JSON.stringify(userInfo));
+
+//         location.href = "board.html";
+//     } else {
+//         helperText.textContent = "*아이디 또는 비밀번호를 확인해주세요";
+//     }
+// }
+
+
+async function attemptLogin() {
     const idValue = idInput.value;
     const pwValue = pwInput.value;
 
-    if (idValue === "jylee0005@gmail.com" && pwValue === "dlwnsdud") {
-        alert(idValue + "님 환영합니다!");
+    try {
+        // 1. 서버에 로그인 요청 전송
+        const response = await fetch('http://127.0.0.1:8000/api/v1/auth/login', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            credentials: 'include',
+            body: JSON.stringify({
+                email: idValue,
+                password: pwValue
+            })
+        });
 
-        // ★ [핵심] 로그인 성공 시 사용자 정보를 브라우저(localStorage)에 저장
-        const userInfo = {
-            email: idValue,
-            nickname: "관리자",   // 초기 닉네임 설정
-            profileImage: "https://cdn.pixabay.com/photo/2015/10/05/22/37/blank-profile-picture-973460_1280.png"      // 초기엔 이미지 없음
-        };
-        localStorage.setItem('user', JSON.stringify(userInfo));
+        const result = await response.json();
 
-        location.href = "board.html";
-    } else {
-        helperText.textContent = "*아이디 또는 비밀번호를 확인해주세요";
+        if (response.ok) {
+            // 2. 로그인 성공 시 처리
+            alert("로그인에 성공했습니다!");
+            
+            // 서버에서 받은 유저 정보(JSON)를 로컬 스토리지에 저장
+            // 백엔드 응답 형식이 { "message": "...", "data": { "email": "...", "nickname": "..." } } 일 경우
+            localStorage.setItem('user', JSON.stringify(result.data));
+            
+            // 게시판으로 이동
+            location.href = "board.html";
+        } else {
+            // 3. 실패 시 서버가 보낸 에러 메시지 표시
+            helperText.textContent = `* ${result.message || "아이디 또는 비밀번호를 확인해주세요"}`;
+        }
+    } catch (error) {
+        console.error("로그인 요청 중 오류 발생:", error);
+        alert("서버와 통신할 수 없습니다.");
     }
 }
-
 // 3. 키보드를 뗄 때(keyup)마다 함수를 실행시킵니다.
 idInput.addEventListener('keyup', checkInput);
 pwInput.addEventListener('keyup', checkInput);

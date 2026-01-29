@@ -1,24 +1,8 @@
-// 1. 더미 데이터
-const mockPost = {
-    id: 1,
-    title: "제목 1",
-    author: "더미 작성자 1",
-    date: "2021-01-01 00:00:00",
-    content: "삶은 항상 놀라운 모험이라고 생각합니다...",
-    likes: 999,      // 테스트용: 클릭하면 1k 됨
-    views: 1200,     // 1k 테스트
-    comments: 0,
-    image: null
-};
+// public/js/post_detail.js
 
-let mockComments = [
-    { id: 101, author: "더미 작성자 1", date: "2021-01-01 00:00:00", content: "댓글 내용 1" },
-    { id: 102, author: "익명", date: "2021-01-02 00:00:00", content: "댓글 내용 2" },
-];
+const urlParams = new URLSearchParams(window.location.search);
+const postId = urlParams.get('id');
 
-// 2. 요소 가져오기
-const backBtn = document.getElementById('backBtn');
-// 게시글 요소
 const postTitle = document.getElementById('postTitle');
 const postAuthor = document.getElementById('postAuthor');
 const postDate = document.getElementById('postDate');
@@ -26,24 +10,19 @@ const postBody = document.getElementById('postBody');
 const likeCount = document.getElementById('likeCount');
 const viewCount = document.getElementById('viewCount');
 const commentCount = document.getElementById('commentCount');
-const likeBox = document.getElementById('likeBox'); // HTML에 id="likeBox" 추가 필요 (아래 설명 참조)
-const postDeleteBtn = document.getElementById('postDeleteBtn');
-// 댓글 요소
 const commentList = document.getElementById('commentList');
 const commentInput = document.getElementById('commentInput');
 const commentSubmitBtn = document.getElementById('commentSubmitBtn');
-// 모달 요소
 const postDeleteModal = document.getElementById('postDeleteModal');
 const commentDeleteModal = document.getElementById('commentDeleteModal');
+const backBtn = document.getElementById('backBtn');
 
 // 상태 변수
 let isLiked = false; // 좋아요 눌렀는지 여부
 let editingCommentId = null; // 현재 수정 중인 댓글 ID (null이면 새 댓글 작성 모드)
 let targetCommentIdToDelete = null; // 삭제할 댓글 ID
 
-// ============================================================
-// ★ 1. 숫자 포맷팅 함수 (1k, 10k, 100k)
-// ============================================================
+// 숫자 포맷팅
 function formatNumber(num) {
     if (num >= 1000) {
         return Math.floor(num / 1000) + 'k'; // 1000 이상이면 k 붙임
@@ -51,211 +30,402 @@ function formatNumber(num) {
     return num; // 1000
 }
 
+// 스크롤 잠금
+function toggleBodyScroll(lock) {
+    document.body.classList.toggle('no-scroll', lock);
+}
 
-// 3. 초기화 및 렌더링
-function initPost() {
-    postTitle.textContent = mockPost.title;
-    postAuthor.textContent = mockPost.author;
-    postDate.textContent = mockPost.date;
-    postBody.textContent = mockPost.content;
+
+// 페이지 로드
+async function initPage(){
+    if (!postId){
+        alert("존재하지 않는 게시글입니다.");
+        location.href = "board.html";
+        return;
+    }
     
-    // 포맷팅 적용하여 표시
-    renderStats();
+    // 본문 데이터 먼저 로딩
+    await loadPostContent();
 
-    renderComments();
-    checkCommentBtn(); // 버튼 초기 상태 설정
+    // 댓글 데이터 로딩
+    loadComments();
 }
 
-function renderStats() {
-    likeCount.textContent = formatNumber(mockPost.likes);
-    viewCount.textContent = formatNumber(mockPost.views);
-    commentCount.textContent = formatNumber(mockComments.length); // 실제 댓글 배열 길이로
+async function loadPostContent() {
+    try {
+        const response = await fetch(`http://127.0.0.1:8000/api/v1/posts/${postId}`, {
+            method: 'GET',
+            credentials: 'include'
+        });
+
+        const result = await response.json();
+
+        if (response.ok) {
+            const post = result.data;
+
+            isLiked = post.isLiked || false; 
+
+            // 초기 로드 시 버튼 색상 적용 (D9D9D9 ↔ ACA0EB)
+            const likeBtnDiv = document.querySelector('.stat-item');
+            if (likeBtnDiv) {
+                likeBtnDiv.classList.toggle('active', isLiked);
+            }
+            
+            postTitle.textContent = post.title;
+            postAuthor.textContent = post.author.nickname; // AuthorDetail 객체 접근
+            postDate.textContent = post.createdAt;
+            postBody.textContent = post.content;
+            likeCount.textContent = formatNumber(post.likeCount);
+            viewCount.textContent = formatNumber(post.viewCount);
+        }
+    } catch (error) {
+        console.error("본문 로드 실패:", error);
+    }
 }
 
-function renderComments() {
+// 1. 요소 정의 (파일 상단 변수 선언부에 추가)
+const likeBtnDiv = document.querySelector('.stat-item');
+
+// 2. 좋아요 클릭 이벤트 리스너 (initPage 함수 실행 전/후 어디든 상관없으나 주석 해제 필수)
+if (likeBtnDiv) {
+    likeBtnDiv.addEventListener('click', async function() {
+        try {
+            // 현재 상태(isLiked)에 따라 요청 방식 결정
+            const response = await fetch(`http://127.0.0.1:8000/api/v1/posts/${postId}/likes`, {
+                method: isLiked ? 'DELETE' : 'POST',
+                credentials: 'include'
+            });
+
+            const result = await response.json();
+
+            if (response.ok) {
+                // 서버 응답으로 상태 동기화
+                isLiked = result.data.isLiked; 
+                
+                // [색상 변경] active 클래스 토글 (CSS의 !important와 연동)
+                this.classList.toggle('active', isLiked); 
+                
+                // [숫자 변경] k 단위 포맷팅 적용
+                likeCount.textContent = formatNumber(result.data.likeCount);
+            } else if (response.status === 409) {
+                // 상태 불일치(Conflict) 에러 시 새로고침
+                alert("상태가 동기화되지 않았습니다. 페이지를 다시 불러옵니다.");
+                location.reload();
+            } else {
+                alert(result.message || "좋아요 처리 중 오류가 발생했습니다.");
+            }
+        } catch (error) {
+            console.error("좋아요 통신 오류:", error);
+        }
+    });
+}
+
+// likeBtnDiv.addEventListener('click', async function() {
+//     try {
+//         const response = await fetch(`http://127.0.0.1:8000/api/v1/posts/${postId}/likes`, {
+//             method: isLiked ? 'DELETE' : 'POST',
+//             credentials: 'include'
+//         });
+
+//         const result = await response.json();
+
+//         if (response.ok) {
+//             // [복구] 서버가 알려주는 최신 isLiked 상태를 직접 대입
+//             isLiked = result.data.isLiked; 
+            
+//             // [복구] 클래스 토글을 통해 색상 즉시 변경 (ACA0EB ↔ D9D9D9)
+//             this.classList.toggle('active', isLiked); 
+            
+//             // [복구] k 단위 포맷팅 적용하여 숫자 업데이트
+//             likeCount.textContent = formatNumber(result.data.likeCount);
+//         } else if (response.status === 409) {
+//             // 상태 불일치 시 메시지 띄우고 강제 새로고침
+//             alert("상태가 동기화되지 않았습니다. 페이지를 다시 불러옵니다.");
+//             location.reload();
+//         }
+//     } catch (error) {
+//         console.error("좋아요 처리 오류:", error);
+//     }
+// });
+
+// 댓글 목록 로드
+async function loadComments() {
+    try {
+        const response = await fetch(`http://127.0.0.1:8000/api/v1/comments/posts/${postId}`, {
+            method: 'GET',
+            credentials: 'include'
+        });
+
+        const result = await response.json();
+
+        if (response.ok) {
+            renderComments(result.data || []);
+            // [수정 이유] 댓글 목록의 길이를 측정하여 댓글 수 갱신
+            commentCount.textContent = formatNumber(result.data.length);
+        }
+    } catch (error) {
+        console.error("댓글 로딩 실패:", error);
+    }
+}
+
+commentSubmitBtn.addEventListener('click', async () => {
+    const text = commentInput.value.trim();
+    if(!text) return;
+
+    // [보완] 더미 배열 수정이 아닌 서버 API 호출 (POST/PUT)
+    const url = editingCommentId 
+        ? `http://127.0.0.1:8000/api/v1/comments/${editingCommentId}` 
+        : `http://127.0.0.1:8000/api/v1/comments/posts/${postId}`;
+    const method = editingCommentId ? 'PUT' : 'POST';
+
+    try {
+        const response = await fetch(url, {
+            method: method,
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify({ content: text })
+        });
+
+        if (response.ok) {
+            editingCommentId = null;
+            commentSubmitBtn.textContent = "댓글 등록";
+            commentInput.value = "";
+            checkCommentBtn();
+            loadComments(); // [보완] 성공 후 서버 데이터 다시 로드
+        }
+    } catch (error) { console.error(error); }
+});
+
+function renderComments(comments) {
     commentList.innerHTML = "";
-    mockComments.forEach(cmt => {
+    comments.forEach(cmt => {
         const item = document.createElement('div');
         item.className = 'comment-item';
+        // [보완] 서버 응답 필드(commentId, author.nickname)에 맞춰 수정
         item.innerHTML = `
             <div class="comment-header">
                 <div class="author-info">
-                    <div class="author-avatar" style="width:28px; height:28px;"></div>
-                    <strong>${cmt.author}</strong>
-                    <span class="date">${cmt.date}</span>
+                    <strong>${cmt.author.nickname}</strong>
+                    <span class="date">${cmt.createdAt}</span>
                 </div>
                 <div class="comment-actions">
-                    <button class="action-btn" onclick="prepareEditComment(${cmt.id})">수정</button>
-                    <button class="action-btn" onclick="openCommentModal(${cmt.id})">삭제</button>
+                    <button class="action-btn" onclick="prepareEditComment(${cmt.commentId}, '${cmt.content}')">수정</button>
+                    <button class="action-btn" onclick="openCommentModal(${cmt.commentId})">삭제</button>
                 </div>
             </div>
             <div class="comment-content">${cmt.content}</div>
         `;
         commentList.appendChild(item);
     });
-    // 댓글 수 업데이트
-    renderStats();
-}
-
-// ============================================================
-// ★ 2. 좋아요 토글 기능
-// ============================================================
-// HTML 수정 필요: 좋아요 박스 div에 class="stat-item like-btn" id="likeBox" 추가
-// (아래 3번 HTML 수정 파트에서 적용)
-
-// 좋아요 박스 클릭 이벤트는 initPost 밖이나 addEventListener로 처리
-// 여기서는 요소가 있다고 가정하고 리스너 추가 (요소가 없으면 에러나므로 HTML id 확인 필수)
-if(document.querySelector('.stats-box')) { 
-    // 좋아요 버튼 요소 찾기 (DOM이 그려진 후)
-    const likeBtnDiv = document.querySelector('.stats-box .stat-item:first-child');
-    
-    likeBtnDiv.classList.add('like-btn'); // CSS용 클래스 추가
-    
-    likeBtnDiv.addEventListener('click', function() {
-        if (isLiked) {
-            // 이미 좋아요 상태면 -> 취소 (-1, 회색)
-            mockPost.likes--;
-            this.classList.remove('active');
-            isLiked = false;
-        } else {
-            // 안 누른 상태면 -> 좋아요 (+1, 보라색)
-            mockPost.likes++;
-            this.classList.add('active');
-            isLiked = true;
-        }
-        renderStats(); // 숫자 다시 그리기
-    });
 }
 
 
-// ============================================================
-// ★ 3. 댓글 입력 감지 (버튼 활성화/비활성화)
-// ============================================================
+
+// 댓글 입력 버튼 활성화
+commentInput.addEventListener('input', () => {
+    const text = commentInput.value.trim();
+    
+    // 1. 실시간 입력 값 확인 (공백 제외)
+    if (text.length > 0) {
+        // 2. 조건 충족 시 보라색(#7F6AEE) 활성화 및 클릭 허용
+        commentSubmitBtn.classList.add('active'); 
+        commentSubmitBtn.disabled = false;
+    } else {
+        // 3. 미충족 시 연보라색(#ACA0EB) 비활성화 및 클릭 차단
+        commentSubmitBtn.classList.remove('active');
+        commentSubmitBtn.disabled = true;
+    }
+});
+
+// 좋아요 기능
+// const likeBtnDiv = document.querySelector('.stat-item');
+// if(likeBtnDiv) {
+//     likeBtnDiv.addEventListener('click', async function() {
+//         // LikeController 엔드포인트 연동
+//         const response = await fetch(`http://127.0.0.1:8000/api/v1/posts/${postId}/likes`, {
+//             method: isLiked ? 'DELETE' : 'POST',
+//             credentials: 'include'
+//         });
+//         const result = await response.json();
+//         if (response.ok) {
+//             isLiked = !isLiked;
+//             this.classList.toggle('active', isLiked);
+//             likeCount.textContent = formatNumber(result.data.likeCount);
+//         }
+//     });
+// }
+
+// [수정된 post_detail.js 의 좋아요 부분]
+
+
+// if (likeBtnDiv) {
+//     // 1. 반드시 클릭 이벤트 리스너로 감싸야 합니다.
+//     // 2. 내부에서 await를 쓰기 위해 async를 붙여줍니다.
+//     likeBtnDiv.addEventListener('click', async function() {
+//         try {
+//             // [변경사항 반영] 서버에 좋아요 상태 변경 요청
+//             const response = await fetch(`http://127.0.0.1:8000/api/v1/posts/${postId}/likes`, {
+//                 method: isLiked ? 'DELETE' : 'POST', // 현재 상태에 따라 전송 방식 결정
+//                 credentials: 'include'
+//             });
+
+//             const result = await response.json();
+
+//             if (response.ok) {
+//                 // [복구] 서버가 주는 실제 데이터(isLiked: true/false)를 전역 변수에 반영
+//                 isLiked = result.data.isLiked; 
+                
+//                 // [복구] 버튼 색상 토글 (이미지 요구사항: ACA0EB ↔ D9D9D9)
+//                 // 여기서 'this'는 클릭된 'likeBtnDiv'를 가리킵니다.
+//                 this.classList.toggle('active', isLiked); 
+                
+//                 // [복구] k 단위 포맷팅 적용하여 숫자 업데이트 (1000 -> 1k)
+//                 likeCount.textContent = formatNumber(result.data.likeCount);
+//             } else if (response.status === 409) {
+//                 // 상태 불일치 시 자동 새로고침 유도
+//                 alert("상태가 동기화되지 않았습니다. 페이지를 다시 불러옵니다.");
+//                 location.reload();
+//             } else {
+//                 alert(result.message || "좋아요 처리 중 오류가 발생했습니다.");
+//             }
+//         } catch (error) {
+//             console.error("좋아요 통신 오류:", error);
+//         }
+//     });
+// }
+
+window.prepareEditComment = (id, content) => {
+    editingCommentId = id;
+    commentInput.value = content;
+    commentInput.focus();
+    commentSubmitBtn.textContent = "댓글 수정";
+    checkCommentBtn();
+};
+
+// 댓글 입력 감지
 commentInput.addEventListener('input', checkCommentBtn);
 
 function checkCommentBtn() {
     const text = commentInput.value.trim();
-    if (text.length > 0) {
-        // 활성화 색상 (#7F6AEE)
-        commentSubmitBtn.classList.add('active'); 
-        commentSubmitBtn.disabled = false;
-    } else {
-        // 비활성화 색상 (#ACA0EB)
-        commentSubmitBtn.classList.remove('active');
-        commentSubmitBtn.disabled = true;
-    }
+    commentSubmitBtn.disabled = text.length === 0;
+    commentSubmitBtn.classList.toggle('active', text.length > 0);
 }
 
-
-// ============================================================
-// ★ 4. 댓글 등록 및 수정 기능
-// ============================================================
-commentSubmitBtn.addEventListener('click', () => {
-    const text = commentInput.value.trim();
-    if(text === "") return;
-
-    if (editingCommentId) {
-        // [수정 모드] 기존 댓글 업데이트
-        const target = mockComments.find(c => c.id === editingCommentId);
-        if (target) {
-            target.content = text; // 내용 변경
-            // (선택사항: 날짜도 수정일로 변경 가능)
-        }
-        
-        // 모드 초기화
-        editingCommentId = null;
-        commentSubmitBtn.textContent = "댓글 등록";
-    } else {
-        // [등록 모드] 새 댓글 추가
-        mockComments.push({
-            id: Date.now(),
-            author: "나", 
-            date: "2024-01-25 12:00:00", // 실제론 new Date() 포맷팅
-            content: text
-        });
-        alert("댓글이 등록되었습니다.");
-    }
-
-    commentInput.value = ""; // 입력창 비우기
-    checkCommentBtn();       // 버튼 비활성화
-    renderComments();        // 목록 갱신
-});
-
-// [수정 버튼 클릭 시] 입력창에 내용 채우고 버튼 바꾸기
-window.prepareEditComment = function(id) {
-    const target = mockComments.find(c => c.id === id);
-    if (!target) return;
-
-    commentInput.value = target.content; // 내용 채우기
-    commentInput.focus();                // 포커스 이동
-    checkCommentBtn();                   // 버튼 활성화
-    
-    // 상태 변경
-    editingCommentId = id;
-    commentSubmitBtn.textContent = "댓글 수정"; // 버튼 글자 변경
-};
-
-
-// ============================================================
-// ★ 5. 모달 스크롤 잠금 (body overflow 제어)
-// ============================================================
-function toggleBodyScroll(lock) {
-    if (lock) {
-        document.body.classList.add('no-scroll');
-    } else {
-        document.body.classList.remove('no-scroll');
-    }
-}
 
 // 게시글 수정 버튼
-
-document.getElementById('postEditBtn').addEventListener('click', () => {
-    location.href = 'edit_post.html'; 
+document.getElementById('postEditBtn').addEventListener('click', async() => {
+    try {
+        // 백엔드 PUT/DELETE API는 이미 내부에서 권한 체크(403)를 수행함
+        // 수정 페이지로 가기 전 간단한 GET 요청으로 확인 가능
+        const response = await fetch(`http://127.0.0.1:8000/api/v1/posts/${postId}`, {
+            credentials: 'include'
+        });
+        const result = await response.json();
+        
+        if (response.ok) {
+            // [핵심] 사용자의 닉네임과 게시글 작성자 닉네임이 일치하는지 확인
+            // 세션 정보나 result.data에 포함된 작성자 정보를 대조합니다.
+            const currentUser = JSON.parse(localStorage.getItem('user')); // 로컬 스토리지 활용 시
+            
+            if (result.data.author.nickname === currentUser.nickname) {
+                location.href = `edit_post.html?id=${postId}`;
+            } else {
+                alert("본인이 작성한 글만 수정할 수 있습니다.");
+            }
+        } else {
+            // 백엔드에서 설정한 에러 메시지(예: PERMISSION_DENIED) 출력
+            alert(result.message || "수정 권한이 없습니다.");
+        }
+    } catch (error) {
+        console.error("권한 확인 중 오류:", error);
+        alert("서버 통신 중 오류가 발생했습니다.");
+    }
 });
 
-// 게시글 삭제 모달
-postDeleteBtn.addEventListener('click', () => {
-    postDeleteModal.style.display = 'flex';
-    toggleBodyScroll(true); // 스크롤 잠금
-});
-document.getElementById('postDelCancel').addEventListener('click', () => {
-    postDeleteModal.style.display = 'none';
-    toggleBodyScroll(false); // 잠금 해제
-});
-document.getElementById('postDelConfirm').addEventListener('click', () => {
-    alert("게시글 삭제됨");
-    location.href = 'board.html';
-    // 페이지 이동하므로 잠금 해제 불필요
+
+// 게시글 삭제 모달 열기
+const postDeleteBtn = document.getElementById('postDeleteBtn');
+if (postDeleteBtn) {
+    postDeleteBtn.addEventListener('click', () => {
+        postDeleteModal.style.display = 'flex';
+        toggleBodyScroll(true);
+    });
+}
+
+// 게시글 삭제 확정 (API 연동)
+document.getElementById('postDelConfirm').addEventListener('click', async () => {
+    try {
+        const response = await fetch(`http://127.0.0.1:8000/api/v1/posts/${postId}`, {
+            method: 'DELETE',
+            credentials: 'include'
+        });
+
+        if (response.ok) {
+            alert("게시글이 삭제되었습니다.");
+            location.href = 'board.html';
+        } else {
+            const result = await response.json();
+            alert(result.message || "삭제 권한이 없습니다.");
+        }
+    } catch (error) {
+        console.error("게시글 삭제 실패:", error);
+    }
 });
 
-// 댓글 삭제 모달
+// 댓글 삭제 모달 열기
 window.openCommentModal = function(id) {
     targetCommentIdToDelete = id;
     commentDeleteModal.style.display = 'flex';
-    toggleBodyScroll(true); // 스크롤 잠금
+    toggleBodyScroll(true);
 };
-document.getElementById('cmtDelCancel').addEventListener('click', () => {
-    commentDeleteModal.style.display = 'none';
-    toggleBodyScroll(false); // 잠금 해제
-});
-document.getElementById('cmtDelConfirm').addEventListener('click', () => {
-    mockComments = mockComments.filter(c => c.id !== targetCommentIdToDelete);
-    renderComments();
-    commentDeleteModal.style.display = 'none';
-    toggleBodyScroll(false); // 잠금 해제
-    
-    // 만약 수정 중이던 댓글을 삭제했다면 초기화
-    if (editingCommentId === targetCommentIdToDelete) {
-        editingCommentId = null;
-        commentInput.value = "";
-        commentSubmitBtn.textContent = "댓글 등록";
-        checkCommentBtn();
+
+// 댓글 삭제 확정 (API 연동)
+document.getElementById('cmtDelConfirm').addEventListener('click', async () => {
+    if (!targetCommentIdToDelete) return;
+
+    try {
+        const response = await fetch(`http://127.0.0.1:8000/api/v1/comments/${targetCommentIdToDelete}`, {
+            method: 'DELETE',
+            credentials: 'include'
+        });
+
+        if (response.ok) {
+            const result = await response.json();
+            commentDeleteModal.style.display = 'none';
+            toggleBodyScroll(false);
+            
+            // 삭제 후 댓글 수 업데이트 및 목록 새로고침
+            commentCount.textContent = formatNumber(result.data.commentCount);
+            loadComments(); 
+            
+            // 수정 중이던 댓글을 삭제했다면 초기화
+            if (editingCommentId === targetCommentIdToDelete) {
+                editingCommentId = null;
+                commentInput.value = "";
+                commentSubmitBtn.textContent = "댓글 등록";
+                checkCommentBtn();
+            }
+        }
+    } catch (error) {
+        console.error("댓글 삭제 실패:", error);
     }
 });
 
+// 모달 취소 버튼들 공통 처리
+document.getElementById('postDelCancel').addEventListener('click', () => {
+    postDeleteModal.style.display = 'none';
+    toggleBodyScroll(false);
+});
 
-// 뒤로가기 등 기타 기능
-backBtn.addEventListener('click', () => location.href = 'board.html');
+document.getElementById('cmtDelCancel').addEventListener('click', () => {
+    commentDeleteModal.style.display = 'none';
+    toggleBodyScroll(false);
+});
 
-// 공통 헤더 로직 실행
-initPost();
+// 뒤로가기 버튼
+if (backBtn) {
+    backBtn.addEventListener('click', () => location.href = 'board.html');
+}
+
+// 초기화 함수 실행 (함수명 일치 확인)
+initPage();

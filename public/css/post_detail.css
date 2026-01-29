@@ -151,12 +151,12 @@ h2 { font-size: 24px; font-weight: bold; margin-bottom: 20px; }
     cursor: pointer;
 }
 /* 좋아요 활성화 상태 (보라색) */
-.stat-item.like-btn.active {
-    background-color: #ACA0EB; color: white
+.stat-item.active {
+    background-color: #ACA0EB;
 }
 /* 좋아요 아이콘/텍스트 색상 (활성화 시 흰색으로 변경하고 싶다면 추가) */
-.stat-item.like-btn.active strong,
-.stat-item.like-btn.active span {
+.stat-item.strong,
+.stat-item.span {
     color: white;
 }
 
