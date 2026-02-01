@@ -73,7 +73,7 @@ async function loadPostContent() {
             
             postTitle.textContent = post.title;
             postAuthor.textContent = post.author.nickname; // AuthorDetail 객체 접근
-            postDate.textContent = post.createdAt;
+            postDate.textContent = post.createdAt.replace('T', ' ').split('.')[0];
             postBody.textContent = post.content;
             likeCount.textContent = formatNumber(post.likeCount);
             viewCount.textContent = formatNumber(post.viewCount);
