@@ -25,7 +25,7 @@ async function loadAndRenderPosts() {
 
         if (response.ok) {
             // 서버 응답 구조가 { "message": "...", "data": [...] }인 경우 result.data 사용
-            const posts = result.data || result; 
+            const posts = result.data.posts
             renderPostList(posts);
         } else {
             console.error("데이터 로드 실패:", result.message);
@@ -67,7 +67,7 @@ function createPostElement(post) {
     if (displayTitle.length > 26) {
         displayTitle = displayTitle.substring(0, 26) + "...";
     }
-
+    const formattedDate = post.createdAt.replace('T', ' ').split('.')[0];
     // 서버 데이터 키값(likes, comments, views 등)이 백엔드 모델과 일치하는지 확인 필수
     card.innerHTML = `
         <h3 class="card-title">${displayTitle}</h3>
@@ -77,11 +77,11 @@ function createPostElement(post) {
                 <span>댓글 ${post.commentCount || 0}</span>
                 <span>조회수 ${post.viewCount || 0}</span>
             </div>
-            <div class="date">${post.createdAt}</div>
+            <div class="date">${formattedDate}</div>
         </div>
         <div class="card-author">
             <div class="author-img"></div> 
-            <span class="author-name">${post.author}</span>
+            <span class="author-name">${post.author.nickname}</span>
         </div>
     `;
     return card;
