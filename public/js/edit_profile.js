@@ -10,118 +10,161 @@ const editBtn = document.getElementById('editBtn');
 const withdrawBtn = document.getElementById('withdrawBtn');
 const toast = document.getElementById('toast');
 
-let currentUser = null; // let으로 변경 (수정 가능하게)
-const storedUser = localStorage.getItem('user');
+const userId = localStorage.getItem('userId');
 
-if (storedUser) {
-    currentUser = JSON.parse(storedUser);
-}
-
-// 닉네임 중복 검사용 더미 데이터
-const mockNicknames = ["홍길동", "어댑터"]; // '관리자'는 내꺼니까 제외
-
-// 3. 초기화 함수: 화면이 켜지면 데이터 채워넣기
-function init() {
-    emailInput.value = currentUser.email;
-    nicknameInput.value = currentUser.nickname;
-    
-    // 이미지가 있다면 표시
-    if (currentUser.profileImage) {
-        profilePreview.src = currentUser.profileImage;
-        profilePreview.classList.remove('hidden');
-        previewContainer.classList.add('uploaded');
-    }
-
-    const headerProfileIcon = document.querySelector('.user-avatar');
-        if (headerProfileIcon && currentUser.profileImage) {
-            headerProfileIcon.style.backgroundImage = `url('${currentUser.profileImage}')`;
-            headerProfileIcon.style.backgroundSize = 'cover';
-            headerProfileIcon.style.backgroundPosition = 'center';
-        }
-}
-
-// 4. 프로필 사진 변경 로직 (Signup과 동일)
-profileInput.addEventListener('change', function(e) {
-    const file = e.target.files[0];
-    if (file) {
-        const reader = new FileReader();
-        reader.onload = function(e) {
-            profilePreview.src = e.target.result;
-            profilePreview.classList.remove('hidden');
-            previewContainer.classList.add('uploaded');
-        };
-        reader.readAsDataURL(file);
-    } else {
-        // 취소 시 (기존 이미지 유지할지, 삭제할지는 기획에 따라 다름)
-        // 여기선 단순하게 유지
-    }
-    checkButtonState(); // 버튼 색상 갱신
-});
-
-// 5. 닉네임 유효성 검사 (Signup과 동일)
-function validateNickname() {
+// [추가] 버튼 활성화 상태 제어 함수
+function checkButtonState() {
     const val = nicknameInput.value.trim();
-    
-    if (val === "") {
-        nicknameHelper.textContent = "*닉네임을 입력해주세요.";
-        nicknameHelper.classList.remove('invisible');
-        return false;
-    } else if (val.length > 10) {
-        nicknameHelper.textContent = "*닉네임은 최대 10자 까지 작성 가능합니다.";
-        nicknameHelper.classList.remove('invisible');
-        return false;
-    } else if (mockNicknames.includes(val) && val !== currentUser.nickname) { 
-        // (중요) 내 원래 닉네임은 중복 검사에서 제외해야 함
-        nicknameHelper.textContent = "*중복된 닉네임 입니다.";
-        nicknameHelper.classList.remove('invisible');
-        return false;
+    // 닉네임이 2자 이상이고 비어있지 않을 때만 버튼 활성화
+    if (val.length >= 2) {
+        editBtn.disabled = false;
+        editBtn.style.backgroundColor = "#7F63F2"; // 활성 색상
+        editBtn.style.cursor = "pointer";
     } else {
-        nicknameHelper.classList.add('invisible');
-        return true;
+        editBtn.disabled = true;
+        editBtn.style.backgroundColor = "#ACA0EB"; // 비활성 색상
+        editBtn.style.cursor = "not-allowed";
     }
 }
 
-nicknameInput.addEventListener('focusout', validateNickname);
+async function init() {
+    if (!userId) return (location.href = "login.html");
+    
+    try {
+        const response = await fetch(`http://127.0.0.1:8000/api/v1/users/${userId}`, {
+            method: 'GET',
+            credentials: 'include'
+        });
+        const result = await response.json();
+        if (response.ok) {
+            nicknameInput.value = result.data.nickname;
+            document.getElementById('email').value = result.data.email;
+            
+            if (result.data.profileImage) {
+                profilePreview.src = result.data.profileImage;
+                profilePreview.classList.remove('hidden'); // hidden 클래스가 있다면 제거
+            }
+            checkButtonState(); // 초기 상태 세팅
+        }
+    } catch (e) { console.error("로드 실패:", e); }
+}
+
 nicknameInput.addEventListener('input', checkButtonState);
 
-// 6. 버튼 활성화 로직
-function checkButtonState() {
-    if (!currentUser) return;
+// 서버에서 받은 이미지 경로를 임시 저장할 변수
+let serverSavedImagePath = ""; 
 
-    const nickVal = nicknameInput.value.trim();
-    // 닉네임 유효성 조건
-    const isNicknameValid = nickVal.length > 0 && nickVal.length <= 10 && 
-                            (!mockNicknames.includes(nickVal) || nickVal === currentUser.nickname);
-    
-    if (isNicknameValid) {
-        editBtn.style.backgroundColor = "#7F6AEE"; // 활성 색상
-        editBtn.disabled = false;
+profileInput.addEventListener('change', async function() {
+    const file = this.files[0];
+    if (!file) return;
+
+    // 1. 서버로 파일 업로드 전송
+    const formData = new FormData();
+    formData.append('file', file);
+
+    try {
+        const response = await fetch('http://127.0.0.1:8000/api/v1/users/upload-profile', {
+            method: 'POST',
+            body: formData,
+            // credentials: 'include' // 세션이 필요하다면 추가
+        });
+
+        const result = await response.json();
+        if (response.ok) {
+            // 2. 서버가 준 상대 경로 저장 (예: /public/images/abc.png)
+            serverSavedImagePath = result.data.profileImageUrl;
+            
+            // 3. 화면 미리보기 (이때는 로컬 브라우저 경로 사용 가능)
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                profilePreview.src = e.target.result;
+                profilePreview.classList.remove('hidden');
+            };
+            reader.readAsDataURL(file);
+        }
+    } catch (err) {
+        console.error("이미지 업로드 실패:", err);
+        alert("이미지 업로드 중 오류가 발생했습니다.");
+    }
+});
+
+// 4. 닉네임 입력 이벤트 (실시간 유효성 검사)
+nicknameInput.addEventListener('input', function() {
+    const value = this.value.trim();
+    nicknameHelper.classList.remove('invisible');
+
+    if (value.length < 2) {
+        nicknameHelper.textContent = "*닉네임은 2자 이상 입력해주세요.";
+        nicknameHelper.style.color = "red";
     } else {
-        editBtn.style.backgroundColor = "#ACA0EB"; // 비활성 색상
-        editBtn.disabled = true;
+        nicknameHelper.textContent = "올바른 닉네임 형식입니다.";
+        nicknameHelper.style.color = "#666";
     }
-}
+    checkButtonState();
+});
 
-// 7. 수정하기 버튼 클릭 (토스트 메시지 띄우기)
-editBtn.addEventListener('click', function() {
-    // 1. 현재 화면에 있는 정보로 객체 업데이트
-    currentUser.nickname = nicknameInput.value;
+
+// 7. 수정 완료 버튼 클릭 이벤트
+editBtn.addEventListener('click', async function(e) {
+    e.preventDefault(); // 폼 제출 방지
+
+    const newNickname = nicknameInput.value.trim(); // 변수명을 정확히 확인하세요.
     
-    // 이미지가 화면에 보이면(업로드 상태면) src 저장
-    if (!profilePreview.classList.contains('hidden')) {
-        currentUser.profileImage = profilePreview.src;
+    const updateData = {
+        nickname: newNickname,
+        profileImage: serverSavedImagePath || profilePreview.src.replace('http://127.0.0.1:8000', '') // <img> 태그의 현재 src 값을 가져옴
+    };
+
+    try {
+        const response = await fetch(`http://127.0.0.1:8000/api/v1/users/${userId}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(updateData), // 전체 데이터를 보냄
+            credentials: 'include'
+        });
+
+        const result = await response.json();
+
+        if (response.ok) {
+            try {
+                // [추가] DB에서 최신 정보를 다시 가져옵니다 (싱크 맞추기)
+                const userRes = await fetch(`http://127.0.0.1:8000/api/v1/users/${userId}`, {
+                    method: 'GET',
+                    credentials: 'include'
+                });
+                const userResult = await userRes.json();
+
+                if (userRes.ok) {
+                    // [핵심] DB에서 가져온 최신 데이터(Full URL 포함)로 Local Storage 갱신
+                    // header.js는 이 'user' 객체 안의 profileImage를 보고 상단 이미지를 띄웁니다.
+                    const updatedUserData = {
+                        userId: userResult.data.userId,
+                        email: userResult.data.email,
+                        nickname: userResult.data.nickname,
+                        profileImage: userResult.data.profileImage, // 백엔드에서 조립된 전체 주소
+                        status: userResult.data.status
+                    };
+
+                    // Local Storage에 저장 (기존 user 객체를 덮어씀)
+                    localStorage.setItem('user', JSON.stringify(updatedUserData));
+                    localStorage.setItem('nickname', updatedUserData.nickname);
+                }
+            } catch (syncError) {
+                console.error("헤더 데이터 동기화 실패:", syncError);
+            }
+
+            // [성공 알림 및 페이지 이동]
+            toast.textContent = "수정 완료";
+            toast.classList.add('show');
+            
+            setTimeout(() => {
+                toast.classList.remove('show');
+                location.href = "board.html"; // 페이지가 이동하면서 header.js가 새 정보를 읽어옵니다.
+            }, 1500);
+        }
+    } catch (error) {
+        console.error("통신 오류:", error);
     }
-
-    // 2. 브라우저 저장소(localStorage)에 덮어쓰기
-    localStorage.setItem('user', JSON.stringify(currentUser));
-
-    // 3. 토스트 메시지 보이기
-    toast.classList.add('show');
-    toast.textContent = "수정 완료";
-
-    setTimeout(() => {
-        toast.classList.remove('show');
-    }, 1500);
 });
 
 
@@ -146,15 +189,26 @@ modalCancelBtn.addEventListener('click', function() {
 });
 
 // 10. 모달 "확인" 클릭 -> 진짜 탈퇴 진행
-modalConfirmBtn.addEventListener('click', function() {
-    // 정보 삭제
-    localStorage.removeItem('user');
-    
-    // 모달 닫기 (혹은 바로 이동하므로 생략 가능)
-    withdrawModal.style.display = 'none';
-    
-    // 로그인 페이지로 이동
-    location.href = "login.html";
+modalConfirmBtn.addEventListener('click', async function() {
+    try {
+        const response = await fetch(`http://127.0.0.1:8000/api/v1/users/${userId}`, {
+            method: 'DELETE', // HTTP 메서드는 관례상 DELETE를 그대로 사용해도 무방합니다.
+            credentials: 'include'
+        });
+
+        if (response.ok) {
+            alert("탈퇴 처리가 완료되었습니다. 그동안 이용해주셔서 감사합니다.");
+            
+            // 공정 마무리: 로컬 세션 제거 및 로그인 창으로 배송
+            localStorage.clear();
+            location.href = "login.html"; 
+        } else {
+            const result = await response.json();
+            alert("탈퇴 실패: " + (result.detail || "오류 발생"));
+        }
+    } catch (error) {
+        console.error("통신 에러:", error);
+    }
 });
 
 // (옵션) 모달 바깥 배경 누르면 닫기

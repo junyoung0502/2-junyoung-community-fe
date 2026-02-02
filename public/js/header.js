@@ -10,6 +10,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const storedUser = localStorage.getItem('user');
     if (storedUser) {
         const currentUser = JSON.parse(storedUser);
+
         if (headerProfileIcon && currentUser.profileImage) {
             headerProfileIcon.style.backgroundImage = `url('${currentUser.profileImage}')`;
             headerProfileIcon.style.backgroundSize = 'cover';

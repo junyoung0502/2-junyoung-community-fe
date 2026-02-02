@@ -16,7 +16,9 @@ const commentSubmitBtn = document.getElementById('commentSubmitBtn');
 const postDeleteModal = document.getElementById('postDeleteModal');
 const commentDeleteModal = document.getElementById('commentDeleteModal');
 const backBtn = document.getElementById('backBtn');
+const postAuthorProfile = document.getElementById('postAuthorProfile');
 
+const BASE_URL = "http://127.0.0.1:8000";
 // 상태 변수
 let isLiked = false; // 좋아요 눌렀는지 여부
 let editingCommentId = null; // 현재 수정 중인 댓글 ID (null이면 새 댓글 작성 모드)
@@ -63,6 +65,22 @@ async function loadPostContent() {
         if (response.ok) {
             const post = result.data;
 
+            // 1. 이미지 영역 선택
+            const imageArea = document.querySelector('.post-image-area');
+            
+            if (imageArea) {
+                if (post.image) {
+                    // 이미지가 있으면 해당 영역 안에 이미지 태그 삽입
+                    imageArea.innerHTML = `<img src="${post.image}" alt="게시글 이미지">`;
+                } else {
+                    // 이미지가 없으면 내부를 비워 회색 배경(#D9D9D9)만 보이게 함
+                    imageArea.innerHTML = ''; 
+                }
+                
+                // [중요] display: none을 하지 않아 항상 칸이 유지됩니다.
+                imageArea.style.display = 'flex'; 
+            }
+
             isLiked = post.isLiked || false; 
 
             // 초기 로드 시 버튼 색상 적용 (D9D9D9 ↔ ACA0EB)
@@ -73,13 +91,49 @@ async function loadPostContent() {
             
             postTitle.textContent = post.title;
             postAuthor.textContent = post.author.nickname; // AuthorDetail 객체 접근
+            
+            if (postAuthorProfile) {
+                // 서버에서 받은 이미지 URL이 있으면 사용하고, 없으면 백엔드의 기본 이미지 경로 사용
+                postAuthorProfile.src = post.author.profileImage || `${BASE_URL}/public/images/default-profile.png`;
+                
+                // 이미지 로드 실패 시(404 등) 백엔드 기본 이미지로 교체하는 방어 코드
+                postAuthorProfile.onerror = () => {
+                    postAuthorProfile.src = `${BASE_URL}/public/images/default-profile.png`;
+                };
+            }
+            
             postDate.textContent = post.createdAt.replace('T', ' ').split('.')[0];
             postBody.textContent = post.content;
             likeCount.textContent = formatNumber(post.likeCount);
             viewCount.textContent = formatNumber(post.viewCount);
+
+            commentCount.textContent = formatNumber(post.commentCount);
         }
     } catch (error) {
         console.error("본문 로드 실패:", error);
+    }
+}
+
+async function deletePost() {
+    try {
+        const response = await fetch(`http://127.0.0.1:8000/api/v1/posts/${postId}`, {
+            method: 'DELETE',
+            credentials: 'include'
+        });
+
+        const result = await response.json();
+
+        if (response.ok) {
+            alert("게시글이 삭제되었습니다.");
+            location.href = "board.html"; // 삭제 성공 시 목록으로 이동
+        } else {
+            alert(result.detail || "삭제 권한이 없습니다.");
+            postDeleteModal.style.display = 'none';
+            toggleBodyScroll(false);
+        }
+    } catch (error) {
+        console.error("게시글 삭제 실패:", error);
+        alert("서버 통신 오류가 발생했습니다.");
     }
 }
 
@@ -159,62 +213,96 @@ async function loadComments() {
         const result = await response.json();
 
         if (response.ok) {
-            renderComments(result.data || []);
-            // [수정 이유] 댓글 목록의 길이를 측정하여 댓글 수 갱신
-            commentCount.textContent = formatNumber(result.data.length);
+            const comments = result.data; // 댓글 리스트
+            const currentUserNickname = localStorage.getItem('nickname');
+            renderComments(comments);
         }
     } catch (error) {
-        console.error("댓글 로딩 실패:", error);
+        console.error("댓글 로드 실패:", error);
     }
 }
 
 commentSubmitBtn.addEventListener('click', async () => {
-    const text = commentInput.value.trim();
-    if(!text) return;
+    const content = commentInput.value.trim();
+    if (!content) return;
+    const isEditMode = editingCommentId !== null;
 
-    // [보완] 더미 배열 수정이 아닌 서버 API 호출 (POST/PUT)
-    const url = editingCommentId 
-        ? `http://127.0.0.1:8000/api/v1/comments/${editingCommentId}` 
-        : `http://127.0.0.1:8000/api/v1/comments/posts/${postId}`;
-    const method = editingCommentId ? 'PUT' : 'POST';
+    // [변경점 2] 모드에 따라 URL과 Method를 동적으로 설정
+    const url = isEditMode 
+        ? `http://127.0.0.1:8000/api/v1/comments/${editingCommentId}` // 수정 시 API 주소
+        : `http://127.0.0.1:8000/api/v1/comments/posts/${postId}`;    // 등록 시 API 주소
+    
+    const method = isEditMode ? 'PUT' : 'POST';
 
     try {
         const response = await fetch(url, {
             method: method,
             headers: { 'Content-Type': 'application/json' },
-            credentials: 'include',
-            body: JSON.stringify({ content: text })
+            body: JSON.stringify({ content: content }),
+            credentials: 'include'
         });
-
         if (response.ok) {
-            editingCommentId = null;
-            commentSubmitBtn.textContent = "댓글 등록";
+            alert(isEditMode ? "댓글이 수정되었습니다." : "댓글이 등록되었습니다.");
+            
+            // [변경점 3] 작업 완료 후 상태 초기화 (매우 중요!)
+            editingCommentId = null; 
             commentInput.value = "";
-            checkCommentBtn();
-            loadComments(); // [보완] 성공 후 서버 데이터 다시 로드
+            commentSubmitBtn.textContent = "댓글 등록"; // 버튼 글자 원복
+            
+            loadComments(); // 목록 새로고침
+            loadPostContent(); // 댓글 수 갱신
+        } else {
+            const result = await response.json();
+            alert(result.detail || "작업 실패");
         }
-    } catch (error) { console.error(error); }
+    } catch (error) {
+        console.error("통신 오류:", error);
+    }
 });
 
 function renderComments(comments) {
     commentList.innerHTML = "";
+    const currentUserId = Number(localStorage.getItem('userId')) || 0; 
+    
+    console.log("현재 로그인 ID:", currentUserId); // 디버깅용
+
     comments.forEach(cmt => {
         const item = document.createElement('div');
         item.className = 'comment-item';
-        // [보완] 서버 응답 필드(commentId, author.nickname)에 맞춰 수정
-        item.innerHTML = `
-            <div class="comment-header">
-                <div class="author-info">
-                    <strong>${cmt.author.nickname}</strong>
-                    <span class="date">${cmt.createdAt}</span>
-                </div>
+
+        // 2. 날짜 가독성 처리 (2026-02-01T12:00:00 -> 2026-02-01 12:00:00)
+        // ISO 형식의 'T'를 공백으로 바꾸고 초 단위까지만 자릅니다.
+        const formattedDate = cmt.createdAt.replace('T', ' ').split('.')[0];
+        const profileImg = cmt.author.profileImage || '../public/images/default-profile.png';
+        const nickname = (cmt.author && cmt.author.nickname) ? cmt.author.nickname : '알 수 없음';
+        
+        // 3. 본인 확인 로직 (내가 쓴 댓글일 때만 버튼을 생성)
+        let actionButtons = "";
+        const commentAuthorId = cmt.author ? Number(cmt.author.userId) : null;
+        console.log(`댓글 ID ${cmt.commentId} 작성자:`, commentAuthorId); // 디버깅용
+        if (cmt.author.userId === currentUserId) {
+            actionButtons = `
                 <div class="comment-actions">
                     <button class="action-btn" onclick="prepareEditComment(${cmt.commentId}, '${cmt.content}')">수정</button>
                     <button class="action-btn" onclick="openCommentModal(${cmt.commentId})">삭제</button>
                 </div>
-            </div>
+            `;
+        }
+
+        // 4. HTML 구조 생성
+        // 백엔드에서 author를 객체로 보내주므로 cmt.author.nickname으로 접근합니다.
+        item.innerHTML = `
+            <div class="comment-header">
+                <div class="author-info">
+                    <img src="${profileImg}" class="comment-avatar" 
+                         onerror="this.src='../public/images/default-profile.png'">
+                    <strong>${cmt.author.nickname}</strong>
+                    <span class="date">${formattedDate}</span>
+                </div>
+                ${actionButtons} </div>
             <div class="comment-content">${cmt.content}</div>
         `;
+
         commentList.appendChild(item);
     });
 }
@@ -397,6 +485,7 @@ document.getElementById('cmtDelConfirm').addEventListener('click', async () => {
             // 삭제 후 댓글 수 업데이트 및 목록 새로고침
             commentCount.textContent = formatNumber(result.data.commentCount);
             loadComments(); 
+            loadPostContent();
             
             // 수정 중이던 댓글을 삭제했다면 초기화
             if (editingCommentId === targetCommentIdToDelete) {

@@ -67,20 +67,44 @@ passwordCheckInput.addEventListener('input', validate);
 
 
 // 3. 수정하기 버튼 클릭
-editBtn.addEventListener('click', function() {
-    // 실제로는 여기서 서버로 비밀번호 변경 요청을 보냄
-    
-    // 토스트 메시지 띄우기
-    toast.classList.add('show');
-    toast.textContent = "수정 완료";
+editBtn.addEventListener('click', async function() {
+    const newPassword = passwordInput.value;
+    const userId = localStorage.getItem('userId');
 
-    setTimeout(() => {
-        toast.classList.remove('show');
-        // 수정 후 입력창 비우기
-        passwordInput.value = "";
-        passwordCheckInput.value = "";
-        validate(); // 버튼 다시 비활성화
-    }, 1500);
+    // [핵심] 서버로 비밀번호 변경 요청 전송
+    try {
+        const response = await fetch(`http://127.0.0.1:8000/api/v1/users/${userId}/password`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            // 현재 비밀번호(currentPassword)는 빈 값으로 보내거나, 
+            // 백엔드 PasswordChangeRequest 모델 정의에 따라 조절합니다.
+            body: JSON.stringify({ 
+                currentPassword: "", // 사용하지 않으므로 빈 값 전송
+                newPassword: newPassword 
+            }),
+            credentials: 'include'
+        });
+
+        if (response.ok) {
+            // [성공 공정]
+            toast.classList.add('show');
+            toast.textContent = "비밀번호 수정 완료";
+
+            setTimeout(() => {
+                toast.classList.remove('show');
+                // 보안을 위해 로그아웃 처리 후 로그인 페이지로 이동하는 것이 정석입니다.
+                alert("비밀번호가 변경되었습니다. 다시 로그인해주세요.");
+                localStorage.clear();
+                location.href = "login.html";
+            }, 1500);
+        } else {
+            const result = await response.json();
+            alert("수정 실패: " + (result.detail || "알 수 없는 오류"));
+        }
+    } catch (error) {
+        console.error("통신 오류:", error);
+        alert("서버와 통신할 수 없습니다.");
+    }
 });
 
 

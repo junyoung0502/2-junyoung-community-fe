@@ -120,7 +120,8 @@ async function attemptLogin() {
             // 서버에서 받은 유저 정보(JSON)를 로컬 스토리지에 저장
             // 백엔드 응답 형식이 { "message": "...", "data": { "email": "...", "nickname": "..." } } 일 경우
             localStorage.setItem('user', JSON.stringify(result.data));
-            
+            localStorage.setItem('userId', result.data.userId); 
+            localStorage.setItem('nickname', result.data.nickname);
             // 게시판으로 이동
             location.href = "board.html";
         } else {

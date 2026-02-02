@@ -213,7 +213,43 @@ nicknameInput.addEventListener('input', checkButtonState);
 // ============================================================
 //  D. 회원가입 버튼 클릭
 // ============================================================
-signupBtn.addEventListener('click', function() {
-    alert("회원가입이 완료되었습니다!\n로그인 페이지로 이동합니다.");
-    location.href = "login.html";
+signupBtn.addEventListener('click', async function() {
+    // 1. 전송할 데이터 수집
+    const email = emailInput.value.trim();
+    const password = pwInput.value.trim();
+    const nickname = nicknameInput.value.trim();
+    
+    // 프로필 이미지는 현재 파일 형식이므로, 
+    // 여기서는 간단하게 파일명이나 임시 경로를 보냅니다.
+    // (실제 파일 업로드는 Multipart/form-data 처리가 필요하지만, 
+    // 우선 DB 저장이 목적인 경우 아래처럼 보냅니다.)
+    const signupData = {
+        email: email,
+        password: password,
+        nickname: nickname,
+        profileImage: "/public/images/default-profile.png" // 우선 기본값 전송
+    };
+
+    try {
+        // 2. 서버의 회원가입 API 호출
+        const response = await fetch('http://127.0.0.1:8000/api/v1/auth/signup', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(signupData)
+        });
+
+        const result = await response.json();
+
+        if (response.ok) {
+            alert("회원가입이 완료되었습니다! 로그인 페이지로 이동합니다.");
+            location.href = "login.html";
+        } else {
+            alert("회원가입 실패: " + (result.detail || "알 수 없는 오류"));
+        }
+    } catch (error) {
+        console.error("통신 오류:", error);
+        alert("서버와 통신할 수 없습니다.");
+    }
 });
