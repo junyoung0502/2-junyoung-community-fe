@@ -19,20 +19,6 @@ const nicknameHelper = document.querySelector('#nickname + .helper-text');
 
 const signupBtn = document.querySelector('.signup-btn');
 
-const mockEmails = [
-    "test@example.com", 
-    "admin@adapterz.kr", 
-    "user@google.com",
-    "jylee0003@google.com"
-];
-
-const mockNicknames = [
-    "관리자", 
-    "홍길동", 
-    "어댑터",
-    "개발자"
-];
-
 // 2. 유효성 검사 정규식
 const emailPattern = /^[A-Za-z0-9_\.\-]+@[A-Za-z0-9\-]+\.[A-Za-z0-9\-]+/;
 const pwPattern = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,20}$/;
@@ -76,7 +62,20 @@ profileInput.addEventListener('change', function(e) {
 // ============================================================
 //  B. 헬퍼 텍스트 표시 로직 (Focus Out)
 // ============================================================
-function validateEmail() {
+
+async function checkDuplicateOnServer(type, value) {
+    if (!value) return false;
+    try {
+        const response = await fetch(`http://127.0.0.1:8000/api/v1/auth/check-duplicate?type=${type}&value=${value}`);
+        const data = await response.json();
+        return data.is_duplicate; // true면 중복, false면 사용 가능
+    } catch (error) {
+        console.error("중복 체크 중 오류:", error);
+        return false;
+    }
+}
+
+async function validateEmail() {
     const val = emailInput.value.trim();
     if (val === "") {
         emailHelper.textContent = "*이메일을 입력해주세요.";
@@ -84,12 +83,17 @@ function validateEmail() {
     } else if (!emailPattern.test(val)) {
         emailHelper.textContent = "*올바른 이메일 주소 형식을 입력해주세요. (예: example@example.com)";
         emailHelper.classList.remove('invisible');
-    } else if (mockEmails.includes(val)) { 
-        emailHelper.textContent = "*중복된 이메일 입니다.";
-        emailHelper.classList.remove('invisible');
     } else {
-        emailHelper.classList.add('invisible');
+        // [수정] 서버 DB에서 중복 확인
+        const isDuplicate = await checkDuplicateOnServer('email', val);
+        if (isDuplicate) {
+            emailHelper.textContent = "*중복된 이메일 입니다.";
+            emailHelper.classList.remove('invisible');
+        } else {
+            emailHelper.classList.add('invisible');
+        }
     }
+    checkButtonState();
 }
 
 function validatePw() {
@@ -146,7 +150,7 @@ function validatePwCheck() {
     }
 }
 
-function validateNickname() {
+async function validateNickname() {
     const val = nicknameInput.value.trim();
     
     if (val === "") {
@@ -158,12 +162,17 @@ function validateNickname() {
     } else if (val.length > 10) {
         nicknameHelper.textContent = "*닉네임은 최대 10자까지 작성 가능합니다.";
         nicknameHelper.classList.remove('invisible');
-    } else if (mockNicknames.includes(val)) {
-        nicknameHelper.textContent = "*중복된 닉네임 입니다.";
-        nicknameHelper.classList.remove('invisible');
     } else {
-        nicknameHelper.classList.add('invisible');
+        // [수정] 서버 DB에서 중복 확인
+        const isDuplicate = await checkDuplicateOnServer('nickname', val);
+        if (isDuplicate) {
+            nicknameHelper.textContent = "*중복된 닉네임 입니다.";
+            nicknameHelper.classList.remove('invisible');
+        } else {
+            nicknameHelper.classList.add('invisible');
+        }
     }
+    checkButtonState();
 }
 
 emailInput.addEventListener('focusout', validateEmail);
@@ -175,22 +184,27 @@ nicknameInput.addEventListener('focusout', validateNickname);
 //  C. 버튼 활성화 로직 (Real-time Check)
 // ============================================================
 function checkButtonState() {
-    // 1. 이메일: 형식 통과 AND 중복 아님
-    const emailVal = emailInput.value.trim();
-    const isEmail = emailPattern.test(emailVal) && !mockEmails.includes(emailVal);
-    
+    // 1. 이메일: 정규식 통과 AND 중복 체크 통과(헬퍼 텍스트가 invisible 상태)
+    const isEmail = emailPattern.test(emailInput.value.trim()) && 
+                    emailHelper.classList.contains('invisible');
+
     // 2. 비밀번호: 형식 통과
     const isPw = pwPattern.test(pwInput.value.trim());
     
-    // 3. 비밀번호 확인: 일치 AND 빈값 아님
-    const isPwCheck = (pwCheckInput.value.trim() === pwInput.value.trim()) && (pwCheckInput.value.trim() !== "");
-    
+    // // 3. 비밀번호 확인: 일치 AND 빈값 아님
+    // const isPwCheck = (pwCheckInput.value.trim() === pwInput.value.trim()) && (pwCheckInput.value.trim() !== "");
+    // 3. 비밀번호 확인: 일치 AND 빈값 아님 AND 헬퍼 텍스트가 invisible 상태
+    const isPwCheck = (pwCheckInput.value.trim() === pwInput.value.trim()) && 
+                      (pwCheckInput.value.trim() !== "") &&
+                      pwCheckHelper.classList.contains('invisible');
+
+
     // 4. 닉네임: 빈값 아님 AND 10자 이하 AND 띄어쓰기 없음 AND 중복 아님
     const nickVal = nicknameInput.value.trim();
     const isNickname = nickVal.length > 0 && 
                        nickVal.length <= 10 && 
                        !nickVal.includes(" ") && 
-                       !mockNicknames.includes(nickVal);
+                       nicknameHelper.classList.contains('invisible');
     
     // 5. 프로필 사진: 파일 있음
     const isProfile = profileInput.files.length > 0;

@@ -148,7 +148,7 @@ postImageInput.addEventListener('change', function(e) {
     } else {
         // 파일 선택 취소 시 기존 파일명 유지 (또는 없음 처리)
         // 여기서는 기존 파일이 있었으면 유지하는 로직
-        fileNameDisplay.textContent = mockPost.imageName || "선택된 파일 없음";
+        fileNameDisplay.textContent = currentImagePath ? "기존 이미지 유지 중" : "선택된 파일 없음";
     }
 });
 

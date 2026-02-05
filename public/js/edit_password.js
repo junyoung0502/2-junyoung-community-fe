@@ -79,7 +79,7 @@ editBtn.addEventListener('click', async function() {
             // 현재 비밀번호(currentPassword)는 빈 값으로 보내거나, 
             // 백엔드 PasswordChangeRequest 모델 정의에 따라 조절합니다.
             body: JSON.stringify({ 
-                currentPassword: "", // 사용하지 않으므로 빈 값 전송
+                // currentPassword: "", // 사용하지 않으므로 빈 값 전송
                 newPassword: newPassword 
             }),
             credentials: 'include'
