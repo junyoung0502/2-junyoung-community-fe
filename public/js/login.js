@@ -122,6 +122,7 @@ async function attemptLogin() {
             localStorage.setItem('user', JSON.stringify(result.data));
             localStorage.setItem('userId', result.data.userId); 
             localStorage.setItem('nickname', result.data.nickname);
+            localStorage.setItem('profileImage', result.data.profileImage);
             // 게시판으로 이동
             location.href = "board.html";
         } else {

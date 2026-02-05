@@ -5,16 +5,24 @@ document.addEventListener('DOMContentLoaded', () => {
     const profileIcon = document.getElementById('profileIcon');
     const userDropdown = document.getElementById('userDropdown');
     const headerProfileIcon = document.querySelector('.user-avatar');
+    const logoutBtn = document.getElementById('logoutBtn');
 
     // 1. LocalStorage에서 사용자 정보 불러와서 프로필 이미지 설정
     const storedUser = localStorage.getItem('user');
-    if (storedUser) {
-        const currentUser = JSON.parse(storedUser);
+    if (storedUser && headerProfileIcon) {
+        try {
+            const currentUser = JSON.parse(storedUser);
+            // 전체 URL이 저장되어 있으므로 그대로 사용
+            const imageUrl = currentUser.profileImage;
 
-        if (headerProfileIcon && currentUser.profileImage) {
-            headerProfileIcon.style.backgroundImage = `url('${currentUser.profileImage}')`;
-            headerProfileIcon.style.backgroundSize = 'cover';
-            headerProfileIcon.style.backgroundPosition = 'center';
+            if (imageUrl) {
+                headerProfileIcon.style.backgroundImage = `url('${imageUrl}')`;
+                headerProfileIcon.style.backgroundSize = 'cover';
+                headerProfileIcon.style.backgroundPosition = 'center';
+                headerProfileIcon.style.display = 'block'; // 요소가 숨겨져 있지 않도록 강제
+            }
+        } catch (e) {
+            console.error("데이터 파싱 에러:", e);
         }
     }
 
@@ -29,6 +37,29 @@ document.addEventListener('DOMContentLoaded', () => {
         document.addEventListener('click', (e) => {
             if (!profileIcon.contains(e.target)) {
                 userDropdown.classList.remove('show');
+            }
+        });
+    }
+    if (logoutBtn) {
+        logoutBtn.addEventListener('click', async (e) => {
+            e.preventDefault();
+
+            try {
+                // 서버 세션 삭제 요청
+                const response = await fetch('http://127.0.0.1:8000/api/v1/auth/logout', {
+                    method: 'POST',
+                    credentials: 'include' // 세션 쿠키 포함
+                });
+
+                if (response.ok) {
+                    alert("로그아웃 되었습니다.");
+                }
+            } catch (error) {
+                console.error("로그아웃 통신 오류:", error);
+            } finally {
+                // 서버 성공 여부와 관계없이 클라이언트 데이터는 반드시 삭제 (보안)
+                localStorage.clear();
+                location.href = "login.html";
             }
         });
     }

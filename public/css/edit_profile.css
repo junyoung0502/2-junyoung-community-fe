@@ -48,7 +48,6 @@ body {
 
 .user-avatar {
     width: 32px; height: 32px;
-    background-color: #333; /* 진한 회색/검정 */
     border-radius: 50%;
 }
 
